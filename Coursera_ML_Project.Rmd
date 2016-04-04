@@ -5,25 +5,80 @@ date: "April 2, 2016"
 output: html_document
 ---
 
+### Summary
+This is the executive summary.
+
 ### Load the Libraries and Data
 ```{r}
-library(caret, randomForest)
+library(caret, gbm)
 
-test <- read.csv("pml-testing.csv")
-train <- read.csv("pml-training.csv")
+test <- read.csv("pml-testing.csv", na.strings = c("NA",""))
+train <- read.csv("pml-training.csv", na.strings = c("NA",""))
 
 # Change the classifications into factors
 train$classe <- as.factor(train$classe)
+
 ```
-### Create Basic Models
+
+### Principal Components Analysis
+Covariates (predictors) were chosen based on the robustness of data that each contained. EDA of the data demonstrated that of the 119 potential covariates, 66 were either descriptive (i.e. timestamps) or contained a very large number of NA values. These were discarded as potential predictors.
 ```{r}
-modGLM <- train(classe ~., method="glm", data=train)
-modRF <- train(classe ~., method="rf", data=train)
+vars_of_interest <-      c(8, 9, 10, 11, 37, 38, 39, 40, 41, 42,
+                           43, 44, 45, 46, 47, 48, 49, 60, 61, 62,
+                           63, 64, 65, 66, 67, 68, 84, 85, 102, 113,
+                           114, 115, 116, 117, 118, 119, 120, 121,
+                           122, 123, 124, 140, 151, 152, 153, 154,
+                           155, 156, 157, 158, 159)
+# Create a correlation matrix to see which variables may be redundant
+corM <- abs(cor(train[,vars_of_interest]))
+diag(corM) <- 0
+# See which variables are correlated grater than 0.8
+which(corM > 0.8, arr.ind = TRUE)
 ```
-You can also embed plots, for example:
 
-```{r, echo=FALSE}
-#plot(cars)
+
+### Create Basic Prediction Models
+A Generalized Boosting Model (gbm) was used with the training data to create the prediction model. 51 covariates are analyzed against the outcome variable.
+```{r, cache = TRUE}
+set.seed(235711)
+
+modFitGBM <-   train(classe ~ roll_belt + pitch_belt + yaw_belt +
+                  total_accel_belt + gyros_belt_x +  gyros_belt_y + 
+                  gyros_belt_z + accel_belt_x +  accel_belt_y +
+                  accel_belt_z + magnet_belt_x +  magnet_belt_y +
+                  magnet_belt_z + roll_arm + pitch_arm + yaw_arm +
+                  total_accel_arm + gyros_arm_x + gyros_arm_y +
+                  gyros_arm_z +  accel_arm_x +  accel_arm_y +
+                  accel_arm_z +  magnet_arm_x + magnet_arm_y +
+                  magnet_arm_z +  roll_dumbbell +  pitch_dumbbell +
+                  yaw_dumbbell + total_accel_dumbbell + 
+                  gyros_dumbbell_x + gyros_dumbbell_y +
+                  gyros_dumbbell_z +  accel_dumbbell_x +
+                  accel_dumbbell_y + accel_dumbbell_z +
+                  magnet_dumbbell_x + magnet_dumbbell_y + 
+                  magnet_dumbbell_z +  roll_forearm + pitch_forearm +
+                  yaw_forearm + total_accel_forearm + 
+                  gyros_forearm_x + gyros_forearm_y + 
+                  gyros_forearm_z +  accel_forearm_x + 
+                  accel_forearm_y + accel_forearm_z + 
+                  magnet_forearm_x + magnet_forearm_y + 
+                  magnet_forearm_z, method="gbm", data=train)
+
+modFitGBM$finalModel
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+### Cross Validation
+Bootstrapping resampling with substitution was performed as a part of the Generalized Boosting Model analysis. 25 bootrapping repetitions were performed. As seen below, the final in-set accuracy was 0.96 with a Kappa of 0.95. Accuracy in the test set should be lower.
+```{r}
+modFitGBM$results
+```
+
+
+### Predictions and ConfusionMatrix Analysis of Models
+The GBM prediction model is applied to the test data set and the results are presented below. Since the true classification values for the test data is unknown, I cannot determine how well the model performs.
+```{r}
+predictions <- predict(modFitGBM, newdata = test)
+#confusionMatrix(predictions, test$classe)
+
+```
+
