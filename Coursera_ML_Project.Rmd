@@ -1,27 +1,30 @@
 ---
-title: "Wearable Analysis"
+title: "Machine Learning Analysis of 'Wearable' Data"
 author: "Robert Turner"
 date: "April 2, 2016"
 output: html_document
 ---
 
-### Summary
-This is the executive summary.
+### Executive Summary
+This analysis seeks to utilize machine learning techniques to build a model capable of classifying how well physical exercises are performed based on wearable-technology data. The most robust predictors are determined using Exploratory Data Analysis and these are used to develop a Generalized Boosting Model that has an in-set accuracy of 96%. Although this seems very impressive, the analyses are not optimized and take about an hour to run. In addition, the test set available masks the classification, so it is not possible to see how well the model actually performs outside of the training set.
+
 
 ### Load the Libraries and Data
-```{r}
+```{r, warning = FALSE, message = FALSE}
 library(caret, gbm)
 
 test <- read.csv("pml-testing.csv", na.strings = c("NA",""))
 train <- read.csv("pml-training.csv", na.strings = c("NA",""))
 
-# Change the classifications into factors
+# Ensure that the classifications are factors
 train$classe <- as.factor(train$classe)
 
 ```
 
 ### Principal Components Analysis
-Covariates (predictors) were chosen based on the robustness of data that each contained. EDA of the data demonstrated that of the 119 potential covariates, 66 were either descriptive (i.e. timestamps) or contained a very large number of NA values. These were discarded as potential predictors.
+Covariates (predictors) were chosen based on the robustness of data that each contained. EDA of the data demonstrated that of the 119 potential covariates, 68 were either descriptive (i.e. timestamps) or contained a very large number of NA values. These were discarded as potential predictors.
+
+Development of a correlation matrix demonstrates that 18 of the chosen covariates are correlated at a level of 0.8 or higher. However, the model that will be used (Generalized Boosting) is not sensitive to highly correlated variables and so these highly correlated variables are not removed.
 ```{r}
 vars_of_interest <-      c(8, 9, 10, 11, 37, 38, 39, 40, 41, 42,
                            43, 44, 45, 46, 47, 48, 49, 60, 61, 62,
@@ -32,14 +35,23 @@ vars_of_interest <-      c(8, 9, 10, 11, 37, 38, 39, 40, 41, 42,
 # Create a correlation matrix to see which variables may be redundant
 corM <- abs(cor(train[,vars_of_interest]))
 diag(corM) <- 0
+
 # See which variables are correlated grater than 0.8
 which(corM > 0.8, arr.ind = TRUE)
 ```
 
 
-### Create Basic Prediction Models
-A Generalized Boosting Model (gbm) was used with the training data to create the prediction model. 51 covariates are analyzed against the outcome variable.
-```{r, cache = TRUE}
+### Generalized Boosting Prediction Model
+A Generalized Boosting Model (gbm) was used with the training data to create the prediction model. GBM is a gradient boosting machine learning technique that can be used for classification problems, and which produces a prediction model in the form of a suite of weak prediction models (typically decision trees). The model is built in a stage-wise fashion, similar to other boosting methods, and it is generalized by allowing optimization of an arbitrary differentiable loss function.
+
+51 covariates are analyzed against the outcome variable classe. 
+
+More information and formulae can be found at:
+https://en.wikipedia.org/wiki/Gradient_boosting
+
+**Please forgive the voluminous output, scroll way down for the remainder of the analysis. Thank you!**
+
+```{r, cache = TRUE, warning=FALSE, message=FALSE}
 set.seed(235711)
 
 modFitGBM <-   train(classe ~ roll_belt + pitch_belt + yaw_belt +
@@ -68,17 +80,27 @@ modFitGBM$finalModel
 ```
 
 ### Cross Validation
-Bootstrapping resampling with substitution was performed as a part of the Generalized Boosting Model analysis. 25 bootrapping repetitions were performed. As seen below, the final in-set accuracy was 0.96 with a Kappa of 0.95. Accuracy in the test set should be lower.
+Bootstrapping resampling with substitution was performed as a part of the Generalized Boosting Model analysis. Twenty five (25) bootrapping repetitions were performed. As seen below, the final in-training set accuracy was 0.96 with a Kappa of 0.95. Accuracy in the test set should be lower.
 ```{r}
-modFitGBM$results
+modFitGBM$results[,c(2,4:8)]
 ```
 
 
-### Predictions and ConfusionMatrix Analysis of Models
+### Predictions 
 The GBM prediction model is applied to the test data set and the results are presented below. Since the true classification values for the test data is unknown, I cannot determine how well the model performs.
-```{r}
+```{r, warning=FALSE, message=FALSE}
 predictions <- predict(modFitGBM, newdata = test)
-#confusionMatrix(predictions, test$classe)
-
+predictions
 ```
 
+### Conclusions
+This analysis employed machine learning techniques to build a Generalized Boosting Model capable of classifying how well physical exercises are performed based on wearable-technology data. The most robust predictors were determined using Exploratory Data Analysis. The resultant model has an in-set accuracy of 96%. The analyses are not optimized and are time consuming. It was not possible to fully assess how well the model performed against the test data set and the results are difficult to interpret by eye.
+
+
+### References
+The data for this project come from: 
+Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements. Proceedings of 21st Brazilian Symposium on Artificial Intelligence. Advances in Artificial Intelligence - SBIA 2012. In: Lecture Notes in Computer Science. , pp. 52-61. Curitiba, PR: Springer Berlin / Heidelberg, 2012. ISBN 978-3-642-34458-9. DOI: 10.1007/978-3-642-34459-6_6.  
+(http://groupware.les.inf.puc-rio.br/har).
+
+Gradient Boosting:
+https://en.wikipedia.org/wiki/Gradient_boosting
